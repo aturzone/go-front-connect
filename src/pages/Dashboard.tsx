@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, FolderKanban, CheckSquare, Activity, Settings } from "lucide-react";
+import { Users, FolderKanban, CheckSquare, Activity, Settings, TrendingUp } from "lucide-react";
 import { isApiConfigured, getUsers, getGroups, getTaskStats, getAdminStatus } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -30,17 +30,20 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const [usersData, groupsData, taskStatsData, statusData] = await Promise.all([
-        getUsers().catch(() => ({ data: [] })),
-        getGroups().catch(() => ({ data: [] })),
-        getTaskStats().catch(() => ({ data: { total: 0, completed: 0 } })),
-        getAdminStatus().catch(() => null),
+        getUsers().catch(() => ({ data: { users: [] } })),
+        getGroups().catch(() => ({ data: { groups: [] } })),
+        getTaskStats().catch(() => ({ data: { total_tasks: 0, completed_tasks: 0 } })),
+        getAdminStatus().catch(() => ({ data: null })),
       ]);
 
+      console.log("Dashboard data loaded:", { usersData, groupsData, taskStatsData });
+
+      // ✅ FIX: Access nested arrays correctly
       setStats({
-        users: usersData?.data?.length || 0,
-        groups: groupsData?.data?.length || 0,
-        tasks: taskStatsData?.data?.total || 0,
-        completedTasks: taskStatsData?.data?.completed || 0,
+        users: usersData?.data?.users?.length || 0,
+        groups: groupsData?.data?.groups?.length || 0,
+        tasks: taskStatsData?.data?.total_tasks || 0,
+        completedTasks: taskStatsData?.data?.completed_tasks || 0,
       });
 
       if (statusData?.data) {
@@ -67,31 +70,39 @@ export default function Dashboard() {
       title: "Total Users",
       value: stats.users,
       icon: Users,
-      color: "text-primary",
+      color: "text-blue-500",
+      bgColor: "bg-blue-50 dark:bg-blue-950",
       link: "/users",
     },
     {
       title: "Groups",
       value: stats.groups,
       icon: FolderKanban,
-      color: "text-accent",
+      color: "text-purple-500",
+      bgColor: "bg-purple-50 dark:bg-purple-950",
       link: "/groups",
     },
     {
       title: "Total Tasks",
       value: stats.tasks,
       icon: CheckSquare,
-      color: "text-success",
+      color: "text-green-500",
+      bgColor: "bg-green-50 dark:bg-green-950",
       link: "/tasks",
     },
     {
-      title: "Completed Tasks",
+      title: "Completed",
       value: stats.completedTasks,
       icon: Activity,
-      color: "text-warning",
+      color: "text-orange-500",
+      bgColor: "bg-orange-50 dark:bg-orange-950",
       link: "/tasks",
     },
   ];
+
+  const completionRate = stats.tasks > 0 
+    ? ((stats.completedTasks / stats.tasks) * 100).toFixed(1)
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -99,7 +110,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
           <p className="text-muted-foreground">
-            Welcome to GASK Task Manager
+            Welcome to GASK Task Manager - Overview of your system
           </p>
         </div>
         <Button variant="outline" onClick={() => navigate("/settings")}>
@@ -108,62 +119,118 @@ export default function Dashboard() {
         </Button>
       </div>
 
+      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((card) => (
-          <Card
-            key={card.title}
-            className="cursor-pointer transition-all hover:shadow-lg hover:scale-105"
-            onClick={() => navigate(card.link)}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                {card.title}
-              </CardTitle>
-              <card.icon className={`h-4 w-4 ${card.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{card.value}</div>
-            </CardContent>
-          </Card>
-        ))}
+        {statCards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <Card
+              key={card.title}
+              className="cursor-pointer transition-all hover:shadow-lg hover:scale-105"
+              onClick={() => navigate(card.link)}
+            >
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {card.title}
+                </CardTitle>
+                <div className={`${card.bgColor} p-2 rounded-lg`}>
+                  <Icon className={`h-5 w-5 ${card.color}`} />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{card.value}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Click to view details
+                </p>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
+      {/* Completion Rate Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-primary" />
+            Task Completion Rate
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <div className="text-5xl font-bold text-primary">{completionRate}%</div>
+            <div className="flex-1">
+              <div className="h-4 bg-secondary rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-primary transition-all duration-500"
+                  style={{ width: `${completionRate}%` }}
+                />
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                {stats.completedTasks} of {stats.tasks} tasks completed
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* System Status */}
       {systemStatus && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-success" />
-              System Status
-            </CardTitle>
+            <CardTitle>System Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Redis</p>
+                <p className="text-lg font-semibold">
+                  {systemStatus.redis?.status || 'Connected'}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">PostgreSQL</p>
+                <p className="text-lg font-semibold">
+                  {systemStatus.postgres?.status || 'Connected'}
+                </p>
+              </div>
+              <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Last Sync</p>
-                <p className="font-medium">{systemStatus.last_sync || "Never"}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Sync Interval</p>
-                <p className="font-medium">
-                  {systemStatus.configuration?.sync_interval || "N/A"}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Environment</p>
-                <p className="font-medium">
-                  {systemStatus.configuration?.environment || "Unknown"}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">API Port</p>
-                <p className="font-medium">
-                  {systemStatus.configuration?.api_port || "N/A"}
+                <p className="text-lg font-semibold">
+                  {systemStatus.last_sync 
+                    ? new Date(systemStatus.last_sync).toLocaleString()
+                    : 'Never'}
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-2 md:grid-cols-4">
+          <Button onClick={() => navigate("/users")} variant="outline" className="w-full">
+            <Users className="h-4 w-4 mr-2" />
+            Manage Users
+          </Button>
+          <Button onClick={() => navigate("/groups")} variant="outline" className="w-full">
+            <FolderKanban className="h-4 w-4 mr-2" />
+            Manage Groups
+          </Button>
+          <Button onClick={() => navigate("/tasks")} variant="outline" className="w-full">
+            <CheckSquare className="h-4 w-4 mr-2" />
+            View Tasks
+          </Button>
+          <Button onClick={() => navigate("/admin")} variant="outline" className="w-full">
+            <Activity className="h-4 w-4 mr-2" />
+            Admin Panel
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

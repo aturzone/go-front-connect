@@ -4,11 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Search, Trash2, Edit, Mail } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Users as UsersIcon } from "lucide-react";
 import { getUsers, createUser, updateUser, deleteUser, searchUsers } from "@/lib/api";
 
 interface User {
@@ -16,7 +15,7 @@ interface User {
   full_name: string;
   email: string;
   role: string;
-  group_ids?: number[];
+  group_ids: number[];
   created_at?: string;
 }
 
@@ -29,7 +28,7 @@ export default function Users() {
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
-    role: "member",
+    role: "user",
     password: "",
   });
 
@@ -41,7 +40,10 @@ export default function Users() {
     setLoading(true);
     try {
       const response = await getUsers();
-      setUsers(response.data || []);
+      console.log("Users response:", response);
+      
+      // ✅ FIX: Access nested users array
+      setUsers(response.data?.users || []);
     } catch (error: any) {
       console.error("Failed to load users:", error);
       toast.error("Failed to load users: " + error.message);
@@ -59,7 +61,10 @@ export default function Users() {
 
     try {
       const response = await searchUsers(searchQuery);
-      setUsers(response.data || []);
+      console.log("Search response:", response);
+      
+      // ✅ FIX: Access nested results array  
+      setUsers(response.data?.results || []);
     } catch (error: any) {
       console.error("Search failed:", error);
       toast.error("Search failed: " + error.message);
@@ -70,18 +75,38 @@ export default function Users() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!formData.full_name.trim() || !formData.email.trim()) {
+      toast.error("Name and email are required");
+      return;
+    }
+
+    if (!editingUser && !formData.password) {
+      toast.error("Password is required for new users");
+      return;
+    }
+    
     try {
+      const payload: any = {
+        full_name: formData.full_name,
+        email: formData.email,
+        role: formData.role,
+      };
+
+      if (formData.password) {
+        payload.password = formData.password;
+      }
+
       if (editingUser) {
-        await updateUser(editingUser.id, formData);
+        await updateUser(editingUser.id, payload);
         toast.success("User updated successfully");
       } else {
-        await createUser(formData);
+        await createUser(payload);
         toast.success("User created successfully");
       }
       
       setDialogOpen(false);
       setEditingUser(null);
-      setFormData({ full_name: "", email: "", role: "member", password: "" });
+      setFormData({ full_name: "", email: "", role: "user", password: "" });
       loadUsers();
     } catch (error: any) {
       toast.error("Operation failed: " + error.message);
@@ -100,7 +125,9 @@ export default function Users() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this user?")) return;
+    if (!confirm("Are you sure you want to delete this user? This will also delete all their tasks.")) {
+      return;
+    }
 
     try {
       await deleteUser(id);
@@ -111,14 +138,14 @@ export default function Users() {
     }
   };
 
-  const getRoleBadgeVariant = (role: string) => {
+  const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case "owner":
+        return "destructive";
+      case "group_admin":
         return "default";
-      case "admin":
-        return "secondary";
       default:
-        return "outline";
+        return "secondary";
     }
   };
 
@@ -127,14 +154,16 @@ export default function Users() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold mb-2">Users</h1>
-          <p className="text-muted-foreground">Manage system users</p>
+          <p className="text-muted-foreground">
+            Manage system users and their roles
+          </p>
         </div>
         
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => {
               setEditingUser(null);
-              setFormData({ full_name: "", email: "", role: "member", password: "" });
+              setFormData({ full_name: "", email: "", role: "user", password: "" });
             }}>
               <Plus className="h-4 w-4 mr-2" />
               Add User
@@ -142,56 +171,60 @@ export default function Users() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingUser ? "Edit User" : "Create New User"}</DialogTitle>
+              <DialogTitle>
+                {editingUser ? "Edit User" : "Create New User"}
+              </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="full_name">Full Name</Label>
+                <Label htmlFor="full_name">Full Name *</Label>
                 <Input
                   id="full_name"
                   value={formData.full_name}
                   onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                  placeholder="John Doe"
                   required
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email *</Label>
                 <Input
                   id="email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="john@example.com"
                   required
                 />
               </div>
-              
+
               <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
-                <Select
+                <Label htmlFor="role">Role *</Label>
+                <select
+                  id="role"
                   value={formData.role}
-                  onValueChange={(value) => setFormData({ ...formData, role: value })}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  required
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="owner">Owner</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="member">Member</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <option value="user">User</option>
+                  <option value="group_admin">Group Admin</option>
+                  <option value="owner">Owner</option>
+                </select>
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">
+                  Password {editingUser ? "(leave empty to keep current)" : "*"}
+                </Label>
                 <Input
                   id="password"
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Enter password"
                   required={!editingUser}
-                  placeholder={editingUser ? "Leave empty to keep current" : ""}
                 />
               </div>
               
@@ -203,32 +236,62 @@ export default function Users() {
         </Dialog>
       </div>
 
+      {/* Search Bar */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Search Users</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="flex gap-2">
             <Input
-              placeholder="Search by name or email..."
+              placeholder="Search users by name or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             />
-            <Button onClick={handleSearch} variant="outline">
-              <Search className="h-4 w-4" />
+            <Button onClick={handleSearch} variant="secondary">
+              <Search className="h-4 w-4 mr-2" />
+              Search
             </Button>
+            {searchQuery && (
+              <Button onClick={() => { setSearchQuery(""); loadUsers(); }} variant="outline">
+                Clear
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="p-8 text-center text-muted-foreground">Loading users...</div>
-          ) : users.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">No users found</div>
-          ) : (
+      {/* Users Table */}
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-pulse text-muted-foreground">
+            Loading users...
+          </div>
+        </div>
+      ) : users.length === 0 ? (
+        <Card>
+          <CardContent className="py-16 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <UsersIcon className="h-16 w-16 text-muted-foreground/50" />
+              <div>
+                <p className="text-lg font-medium mb-1">No users found</p>
+                <p className="text-sm text-muted-foreground">
+                  {searchQuery ? "Try a different search term" : "Create your first user to get started"}
+                </p>
+              </div>
+              {!searchQuery && (
+                <Button onClick={() => setDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create First User
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Users ({users.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -236,23 +299,24 @@ export default function Users() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Groups</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {users.map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell className="font-mono">{user.id}</TableCell>
-                    <TableCell className="font-medium">{user.full_name}</TableCell>
+                    <TableCell className="font-medium">{user.id}</TableCell>
+                    <TableCell>{user.full_name}</TableCell>
+                    <TableCell>{user.email}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-3 w-3 text-muted-foreground" />
-                        {user.email}
-                      </div>
+                      <Badge variant={getRoleBadgeColor(user.role)}>
+                        {user.role}
+                      </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={getRoleBadgeVariant(user.role)}>
-                        {user.role}
+                      <Badge variant="outline">
+                        {user.group_ids?.length || 0} groups
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -268,6 +332,7 @@ export default function Users() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDelete(user.id)}
+                          className="text-destructive hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -277,9 +342,9 @@ export default function Users() {
                 ))}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -6,19 +6,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Search, Filter, BarChart3 } from "lucide-react";
+import { Search, Filter, BarChart3, CheckSquare } from "lucide-react";
 import { searchTasks, getTaskStats, getTasksWithFilters } from "@/lib/api";
 
 interface Task {
   id: number;
   title: string;
-  description?: string;
-  status: string;
-  priority: string;
+  information?: string;
+  status: boolean;
+  priority: number;
+  deadline?: string;
   user_id: number;
-  user_name?: string;
+  group_id: number;
   created_at?: string;
-  due_date?: string;
+  updated_at?: string;
 }
 
 export default function Tasks() {
@@ -37,10 +38,14 @@ export default function Tasks() {
   const loadStats = async () => {
     try {
       const response = await getTaskStats();
-      setStats(response.data);
+      console.log("Task stats response:", response);
+      
+      // ✅ FIX: Access nested data correctly
+      setStats(response.data || null);
     } catch (error: any) {
       console.error("Failed to load stats:", error);
-      // Silently fail for stats, don't show error toast
+      // Silently fail for stats
+      setStats(null);
     }
   };
 
@@ -48,11 +53,26 @@ export default function Tasks() {
     setLoading(true);
     try {
       const filters: any = {};
-      if (filterStatus !== "all") filters.status = filterStatus;
-      if (filterPriority !== "all") filters.priority = filterPriority;
+      
+      // Map frontend filter values to backend values
+      if (filterStatus !== "all") {
+        filters.status = filterStatus === "completed" ? "completed" : "pending";
+      }
+      
+      if (filterPriority !== "all") {
+        // Priority: 1=high, 2=medium, 3=low in backend
+        const priorityMap: any = { "1": 1, "2": 2, "3": 3 };
+        filters.priority = priorityMap[filterPriority] || filterPriority;
+      }
 
+      console.log("Loading tasks with filters:", filters);
+      
       const response = await getTasksWithFilters(filters);
-      setTasks(response.data || []);
+      console.log("Tasks filter response:", response);
+      
+      // ✅ FIX: Access nested tasks array
+      setTasks(response.data?.tasks || []);
+      
     } catch (error: any) {
       console.error("Failed to load tasks:", error);
       toast.error("Failed to load tasks: " + error.message);
@@ -71,7 +91,14 @@ export default function Tasks() {
     setLoading(true);
     try {
       const response = await searchTasks(searchQuery);
-      setTasks(response.data || []);
+      console.log("Search response:", response);
+      
+      // ✅ FIX: Backend returns array of SearchTask objects with nested Task
+      const searchResults = response.data?.results || [];
+      const extractedTasks = searchResults.map((result: any) => result.task || result);
+      
+      setTasks(extractedTasks);
+      
     } catch (error: any) {
       console.error("Search failed:", error);
       toast.error("Search failed: " + error.message);
@@ -85,25 +112,38 @@ export default function Tasks() {
     loadTasks();
   };
 
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case "completed":
-        return "default";
-      case "in-progress":
-        return "secondary";
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    loadTasks();
+  };
+
+  const getStatusBadge = (status: boolean) => {
+    return status ? (
+      <Badge variant="default" className="bg-green-500">Completed</Badge>
+    ) : (
+      <Badge variant="secondary">Pending</Badge>
+    );
+  };
+
+  const getPriorityBadge = (priority: number) => {
+    switch (priority) {
+      case 1:
+        return <Badge variant="destructive">High</Badge>;
+      case 2:
+        return <Badge variant="default">Medium</Badge>;
+      case 3:
+        return <Badge variant="secondary">Low</Badge>;
       default:
-        return "outline";
+        return <Badge variant="outline">Priority {priority}</Badge>;
     }
   };
 
-  const getPriorityBadgeVariant = (priority: string) => {
-    switch (priority?.toLowerCase()) {
-      case "high":
-        return "destructive";
-      case "medium":
-        return "default";
-      default:
-        return "secondary";
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "N/A";
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch {
+      return dateString;
     }
   };
 
@@ -111,9 +151,10 @@ export default function Tasks() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold mb-2">Tasks</h1>
-        <p className="text-muted-foreground">Browse and search all tasks</p>
+        <p className="text-muted-foreground">Browse and search all tasks in the system</p>
       </div>
 
+      {/* Stats Cards */}
       {stats && (
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
@@ -122,58 +163,73 @@ export default function Tasks() {
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.total || 0}</div>
+              <div className="text-2xl font-bold">{stats.total_tasks || 0}</div>
             </CardContent>
           </Card>
+          
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              <BarChart3 className="h-4 w-4 text-success" />
+              <CheckSquare className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.completed || 0}</div>
+              <div className="text-2xl font-bold text-green-500">
+                {stats.completed_tasks || 0}
+              </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">In Progress</CardTitle>
-              <BarChart3 className="h-4 w-4 text-warning" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.in_progress || 0}</div>
-            </CardContent>
-          </Card>
+          
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Pending</CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              <BarChart3 className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.pending || 0}</div>
+              <div className="text-2xl font-bold text-orange-500">
+                {stats.pending_tasks || 0}
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Completion Rate</CardTitle>
+              <BarChart3 className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-primary">
+                {stats.completion_rate ? `${stats.completion_rate.toFixed(1)}%` : "0%"}
+              </div>
             </CardContent>
           </Card>
         </div>
       )}
 
+      {/* Search and Filter */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Search & Filter</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="pt-6 space-y-4">
+          {/* Search Bar */}
           <div className="flex gap-2">
             <Input
-              placeholder="Search tasks..."
+              placeholder="Search tasks by title or description..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               className="flex-1"
             />
-            <Button onClick={handleSearch} variant="outline">
-              <Search className="h-4 w-4" />
+            <Button onClick={handleSearch} variant="secondary">
+              <Search className="h-4 w-4 mr-2" />
+              Search
             </Button>
+            {searchQuery && (
+              <Button onClick={handleClearSearch} variant="outline">
+                Clear
+              </Button>
+            )}
           </div>
           
-          <div className="flex gap-2">
+          {/* Filters */}
+          <div className="flex gap-2 flex-wrap">
             <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Status" />
@@ -181,7 +237,6 @@ export default function Tasks() {
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="in-progress">In Progress</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
               </SelectContent>
             </Select>
@@ -192,9 +247,9 @@ export default function Tasks() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Priority</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="1">High (1)</SelectItem>
+                <SelectItem value="2">Medium (2)</SelectItem>
+                <SelectItem value="3">Low (3)</SelectItem>
               </SelectContent>
             </Select>
 
@@ -202,61 +257,106 @@ export default function Tasks() {
               <Filter className="h-4 w-4 mr-2" />
               Apply Filters
             </Button>
+            
+            {(filterStatus !== "all" || filterPriority !== "all") && (
+              <Button 
+                onClick={() => {
+                  setFilterStatus("all");
+                  setFilterPriority("all");
+                  loadTasks();
+                }} 
+                variant="ghost"
+              >
+                Reset Filters
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
 
+      {/* Tasks Table */}
       <Card>
-        <CardContent className="p-0">
+        <CardHeader>
+          <CardTitle>
+            Tasks {tasks.length > 0 && `(${tasks.length})`}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
           {loading ? (
-            <div className="p-8 text-center text-muted-foreground">Loading tasks...</div>
+            <div className="p-8 text-center">
+              <div className="animate-pulse text-muted-foreground">
+                Loading tasks...
+              </div>
+            </div>
           ) : tasks.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">No tasks found</div>
+            <div className="p-8 text-center">
+              <CheckSquare className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
+              <p className="text-lg font-medium mb-1">No tasks found</p>
+              <p className="text-sm text-muted-foreground">
+                {searchQuery || filterStatus !== "all" || filterPriority !== "all"
+                  ? "Try adjusting your search or filters"
+                  : "No tasks available in the system"}
+              </p>
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>User</TableHead>
-                  <TableHead>Due Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tasks.map((task) => (
-                  <TableRow key={task.id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{task.title}</p>
-                        {task.description && (
-                          <p className="text-sm text-muted-foreground line-clamp-1">
-                            {task.description}
-                          </p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusBadgeVariant(task.status)}>
-                        {task.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getPriorityBadgeVariant(task.priority)}>
-                        {task.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{task.user_name || `User ${task.user_id}`}</TableCell>
-                    <TableCell>
-                      {task.due_date ? new Date(task.due_date).toLocaleDateString() : "-"}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[60px]">ID</TableHead>
+                    <TableHead className="min-w-[200px]">Title</TableHead>
+                    <TableHead className="min-w-[150px]">Information</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Deadline</TableHead>
+                    <TableHead>User ID</TableHead>
+                    <TableHead>Group ID</TableHead>
+                    <TableHead>Created</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {tasks.map((task) => (
+                    <TableRow key={task.id}>
+                      <TableCell className="font-medium">{task.id}</TableCell>
+                      <TableCell className="font-medium">{task.title}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
+                        {task.information || "—"}
+                      </TableCell>
+                      <TableCell>{getStatusBadge(task.status)}</TableCell>
+                      <TableCell>{getPriorityBadge(task.priority)}</TableCell>
+                      <TableCell className="text-sm">
+                        {formatDate(task.deadline)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">User #{task.user_id}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">Group #{task.group_id}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {formatDate(task.created_at)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Info Footer */}
+      {tasks.length > 0 && (
+        <Card>
+          <CardContent className="py-3">
+            <p className="text-sm text-muted-foreground text-center">
+              Showing {tasks.length} task{tasks.length !== 1 ? "s" : ""}
+              {searchQuery && ` matching "${searchQuery}"`}
+              {(filterStatus !== "all" || filterPriority !== "all") && " with applied filters"}
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
