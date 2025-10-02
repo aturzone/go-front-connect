@@ -12,6 +12,7 @@ import Tasks from "./pages/Tasks";
 import MyTasks from "./pages/MyTasks";
 import Admin from "./pages/Admin";
 import Health from "./pages/Health";
+import ApiDebug from "./pages/ApiDebug";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/my-tasks" element={<MyTasks />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/health" element={<Health />} />
+            <Route path="/api-debug" element={<ApiDebug />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Users, FolderKanban, CheckSquare, Activity, Settings, TrendingUp } from "lucide-react";
-import { isApiConfigured, getUsers, getGroups, getTaskStats, getAdminStatus } from "@/lib/api";
+import { isApiConfigured, getUsers, getGroups, getTaskStats, getAdminStatus, getUserTasks } from "@/lib/api";
 import { toast } from "sonner";
+import { getUserAuth, isOwner, isGroupAdmin, isUser } from "@/lib/auth";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -29,25 +30,57 @@ export default function Dashboard() {
 
     setLoading(true);
     try {
-      const [usersData, groupsData, taskStatsData, statusData] = await Promise.all([
-        getUsers().catch(() => ({ data: { users: [] } })),
-        getGroups().catch(() => ({ data: { groups: [] } })),
-        getTaskStats().catch(() => ({ data: { total_tasks: 0, completed_tasks: 0 } })),
-        getAdminStatus().catch(() => ({ data: null })),
-      ]);
+      const auth = getUserAuth();
+      
+      if (isOwner()) {
+        // Owner sees everything
+        const [usersData, groupsData, taskStatsData, statusData] = await Promise.all([
+          getUsers().catch(() => ({ data: { users: [] } })),
+          getGroups().catch(() => ({ data: { groups: [] } })),
+          getTaskStats().catch(() => ({ data: { total_tasks: 0, completed_tasks: 0 } })),
+          getAdminStatus().catch(() => ({ data: null })),
+        ]);
 
-      console.log("Dashboard data loaded:", { usersData, groupsData, taskStatsData });
+        setStats({
+          users: usersData?.data?.users?.length || 0,
+          groups: groupsData?.data?.groups?.length || 0,
+          tasks: taskStatsData?.data?.total_tasks || 0,
+          completedTasks: taskStatsData?.data?.completed_tasks || 0,
+        });
 
-      // ✅ FIX: Access nested arrays correctly
-      setStats({
-        users: usersData?.data?.users?.length || 0,
-        groups: groupsData?.data?.groups?.length || 0,
-        tasks: taskStatsData?.data?.total_tasks || 0,
-        completedTasks: taskStatsData?.data?.completed_tasks || 0,
-      });
+        if (statusData?.data) {
+          setSystemStatus(statusData.data);
+        }
+      } else if (isGroupAdmin() && auth?.groupId) {
+        // Group admin sees their group data
+        const [usersData, groupsData] = await Promise.all([
+          getUsers().catch(() => ({ data: { users: [] } })),
+          getGroups().catch(() => ({ data: { groups: [] } })),
+        ]);
 
-      if (statusData?.data) {
-        setSystemStatus(statusData.data);
+        const groupUsers = usersData?.data?.users?.filter((u: any) => 
+          u.group_ids?.includes(auth.groupId)
+        ) || [];
+        
+        const myGroup = groupsData?.data?.groups?.find((g: any) => g.id === auth.groupId);
+
+        setStats({
+          users: groupUsers.length,
+          groups: myGroup ? 1 : 0,
+          tasks: 0, // Will be calculated from group tasks
+          completedTasks: 0,
+        });
+      } else if (isUser() && auth?.userId) {
+        // Regular user sees only their tasks
+        const tasksData = await getUserTasks(auth.userId).catch(() => ({ data: { tasks: [] } }));
+        const userTasks = tasksData?.data?.tasks || [];
+        
+        setStats({
+          users: 1,
+          groups: 0,
+          tasks: userTasks.length,
+          completedTasks: userTasks.filter((t: any) => t.status).length,
+        });
       }
     } catch (error: any) {
       console.error("Dashboard data load error:", error);
@@ -174,8 +207,8 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* System Status */}
-      {systemStatus && (
+      {/* System Status - Owner only */}
+      {isOwner() && systemStatus && (
         <Card>
           <CardHeader>
             <CardTitle>System Status</CardTitle>
@@ -213,22 +246,48 @@ export default function Dashboard() {
           <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-2 md:grid-cols-4">
-          <Button onClick={() => navigate("/users")} variant="outline" className="w-full">
-            <Users className="h-4 w-4 mr-2" />
-            Manage Users
-          </Button>
-          <Button onClick={() => navigate("/groups")} variant="outline" className="w-full">
-            <FolderKanban className="h-4 w-4 mr-2" />
-            Manage Groups
-          </Button>
-          <Button onClick={() => navigate("/tasks")} variant="outline" className="w-full">
-            <CheckSquare className="h-4 w-4 mr-2" />
-            View Tasks
-          </Button>
-          <Button onClick={() => navigate("/admin")} variant="outline" className="w-full">
-            <Activity className="h-4 w-4 mr-2" />
-            Admin Panel
-          </Button>
+          {isOwner() && (
+            <>
+              <Button onClick={() => navigate("/users")} variant="outline" className="w-full">
+                <Users className="h-4 w-4 mr-2" />
+                Manage Users
+              </Button>
+              <Button onClick={() => navigate("/groups")} variant="outline" className="w-full">
+                <FolderKanban className="h-4 w-4 mr-2" />
+                Manage Groups
+              </Button>
+              <Button onClick={() => navigate("/tasks")} variant="outline" className="w-full">
+                <CheckSquare className="h-4 w-4 mr-2" />
+                View Tasks
+              </Button>
+              <Button onClick={() => navigate("/admin")} variant="outline" className="w-full">
+                <Activity className="h-4 w-4 mr-2" />
+                Admin Panel
+              </Button>
+            </>
+          )}
+          {isGroupAdmin() && (
+            <>
+              <Button onClick={() => navigate("/users")} variant="outline" className="w-full">
+                <Users className="h-4 w-4 mr-2" />
+                Group Users
+              </Button>
+              <Button onClick={() => navigate("/groups")} variant="outline" className="w-full">
+                <FolderKanban className="h-4 w-4 mr-2" />
+                My Group
+              </Button>
+              <Button onClick={() => navigate("/tasks")} variant="outline" className="w-full">
+                <CheckSquare className="h-4 w-4 mr-2" />
+                Group Tasks
+              </Button>
+            </>
+          )}
+          {isUser() && (
+            <Button onClick={() => navigate("/my-tasks")} variant="outline" className="w-full">
+              <CheckSquare className="h-4 w-4 mr-2" />
+              My Tasks
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>

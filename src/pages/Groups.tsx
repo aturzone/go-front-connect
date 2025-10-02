@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Plus, Edit, Trash2, Users, FolderKanban } from "lucide-react";
 import { getGroups, createGroup, updateGroup, deleteGroup, getUsers } from "@/lib/api";
+import { getUserAuth, isOwner, isGroupAdmin } from "@/lib/auth";
 
 interface Group {
   id: number;
@@ -42,6 +43,7 @@ export default function Groups() {
   const loadData = async () => {
     setLoading(true);
     try {
+      const auth = getUserAuth();
       // Load groups and users in parallel
       const [groupsRes, usersRes] = await Promise.all([
         getGroups(),
@@ -51,8 +53,15 @@ export default function Groups() {
       console.log("Groups response:", groupsRes);
       console.log("Users response:", usersRes);
       
-      // ✅ FIX: Access nested groups array
-      setGroups(groupsRes.data?.groups || []);
+      let allGroups = groupsRes.data?.groups || [];
+      
+      // Filter groups based on role
+      if (isGroupAdmin() && auth?.groupId) {
+        // Group admin can only see their own group
+        allGroups = allGroups.filter((g: Group) => g.id === auth.groupId);
+      }
+      
+      setGroups(allGroups);
       
       // Filter users who can be admins (group_admin or owner)
       const adminUsers = (usersRes.data?.users || []).filter(
@@ -151,16 +160,17 @@ export default function Groups() {
           </p>
         </div>
         
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => {
-              setEditingGroup(null);
-              setFormData({ name: "", admin_id: "" });
-            }}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Group
-            </Button>
-          </DialogTrigger>
+        {isOwner() && (
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => {
+                setEditingGroup(null);
+                setFormData({ name: "", admin_id: "" });
+              }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Group
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
@@ -206,6 +216,7 @@ export default function Groups() {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {loading ? (
@@ -257,25 +268,27 @@ export default function Groups() {
                     <Users className="h-3 w-3" />
                     Group #{group.id}
                   </Badge>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(group)}
-                      title="Edit group"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(group.id)}
-                      className="text-destructive hover:text-destructive"
-                      title="Delete group"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  {isOwner() && (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEdit(group)}
+                        title="Edit group"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(group.id)}
+                        className="text-destructive hover:text-destructive"
+                        title="Delete group"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

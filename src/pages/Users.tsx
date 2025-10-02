@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { Plus, Edit, Trash2, Search, Users as UsersIcon, CheckSquare } from "lucide-react";
 import { getUsers, createUser, updateUser, deleteUser, searchUsers, createTask, getGroups } from "@/lib/api";
+import { getUserAuth, isOwner, isGroupAdmin } from "@/lib/auth";
 
 interface User {
   id: number;
@@ -55,11 +56,21 @@ export default function Users() {
   const loadUsers = async () => {
     setLoading(true);
     try {
+      const auth = getUserAuth();
       const response = await getUsers();
       console.log("Users response:", response);
       
-      // ✅ FIX: Access nested users array
-      setUsers(response.data?.users || []);
+      let allUsers = response.data?.users || [];
+      
+      // Filter users based on role
+      if (isGroupAdmin() && auth?.groupId) {
+        // Group admin can only see users in their group
+        allUsers = allUsers.filter((user: User) => 
+          user.group_ids?.includes(auth.groupId!)
+        );
+      }
+      
+      setUsers(allUsers);
     } catch (error: any) {
       console.error("Failed to load users:", error);
       toast.error("Failed to load users: " + error.message);
@@ -267,20 +278,22 @@ export default function Users() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="role">Role *</Label>
-                <select
-                  id="role"
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  required
-                >
-                  <option value="user">User</option>
-                  <option value="group_admin">Group Admin</option>
-                  <option value="owner">Owner</option>
-                </select>
-              </div>
+              {isOwner() && (
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role *</Label>
+                  <select
+                    id="role"
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    required
+                  >
+                    <option value="user">User</option>
+                    <option value="group_admin">Group Admin</option>
+                    <option value="owner">Owner</option>
+                  </select>
+                </div>
+              )}
               
               <div className="space-y-2">
                 <Label htmlFor="password">

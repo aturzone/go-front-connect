@@ -8,6 +8,7 @@ import {
   Settings,
   ShieldCheck,
   Activity,
+  Bug,
 } from "lucide-react";
 import {
   Sidebar,
@@ -21,27 +22,37 @@ import {
   SidebarHeader,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { getUserAuth, UserRole } from "@/lib/auth";
 
-const mainItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Users", url: "/users", icon: Users },
-  { title: "Groups", url: "/groups", icon: FolderKanban },
-  { title: "All Tasks", url: "/tasks", icon: CheckSquare },
-  { title: "My Tasks", url: "/my-tasks", icon: ClipboardList },
+interface MenuItem {
+  title: string;
+  url: string;
+  icon: any;
+  roles: UserRole[];
+}
+
+const mainItems: MenuItem[] = [
+  { title: "Dashboard", url: "/", icon: LayoutDashboard, roles: ['owner', 'group-admin', 'user'] },
+  { title: "Users", url: "/users", icon: Users, roles: ['owner'] },
+  { title: "Groups", url: "/groups", icon: FolderKanban, roles: ['owner', 'group-admin'] },
+  { title: "All Tasks", url: "/tasks", icon: CheckSquare, roles: ['owner'] },
+  { title: "My Tasks", url: "/my-tasks", icon: ClipboardList, roles: ['owner', 'group-admin', 'user'] },
 ];
 
-const adminItems = [
-  { title: "Admin Panel", url: "/admin", icon: ShieldCheck },
-  { title: "Health Check", url: "/health", icon: Activity },
+const adminItems: MenuItem[] = [
+  { title: "Admin Panel", url: "/admin", icon: ShieldCheck, roles: ['owner'] },
+  { title: "Health Check", url: "/health", icon: Activity, roles: ['owner', 'group-admin', 'user'] },
+  { title: "API Debug", url: "/api-debug", icon: Bug, roles: ['owner', 'group-admin', 'user'] },
 ];
 
-const settingsItems = [
-  { title: "Settings", url: "/settings", icon: Settings },
+const settingsItems: MenuItem[] = [
+  { title: "Settings", url: "/settings", icon: Settings, roles: ['owner', 'group-admin', 'user'] },
 ];
 
 export function AppSidebar() {
   const { open } = useSidebar();
   const location = useLocation();
+  const auth = getUserAuth();
 
   const isActive = (path: string) => {
     if (path === "/") return location.pathname === "/";
@@ -53,6 +64,15 @@ export function AppSidebar() {
       ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
       : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-foreground";
   };
+
+  const filterByRole = (items: MenuItem[]) => {
+    if (!auth) return items;
+    return items.filter(item => item.roles.includes(auth.role));
+  };
+
+  const visibleMainItems = filterByRole(mainItems);
+  const visibleAdminItems = filterByRole(adminItems);
+  const visibleSettingsItems = filterByRole(settingsItems);
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -71,46 +91,50 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Main</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {mainItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink to={item.url} className={getNavClass(item.url)}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {visibleMainItems.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Main</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visibleMainItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink to={item.url} className={getNavClass(item.url)}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Administration</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {adminItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink to={item.url} className={getNavClass(item.url)}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {visibleAdminItems.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visibleAdminItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink to={item.url} className={getNavClass(item.url)}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
             <SidebarMenu>
-              {settingsItems.map((item) => (
+              {visibleSettingsItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} className={getNavClass(item.url)}>

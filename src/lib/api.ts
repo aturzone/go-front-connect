@@ -4,7 +4,8 @@ const API_CONFIG_KEY = 'gask_api_config';
 
 export interface ApiConfig {
   baseUrl: string;
-  ownerPassword: string;
+  ownerPassword?: string;
+  userPassword?: string;
 }
 
 // Get API configuration from localStorage
@@ -31,7 +32,7 @@ export const clearApiConfig = (): void => {
 // Check if API is configured
 export const isApiConfigured = (): boolean => {
   const config = getApiConfig();
-  return !!(config?.baseUrl && config?.ownerPassword);
+  return !!(config?.baseUrl && (config?.ownerPassword || config?.userPassword));
 };
 
 // API request helper
@@ -59,7 +60,17 @@ export const apiRequest = async <T = any>(
   };
 
   if (requireAuth) {
-    headers['X-Owner-Password'] = config.ownerPassword;
+    // Import getUserAuth here to avoid circular dependency
+    const authData = localStorage.getItem('gask_user_auth');
+    const userAuth = authData ? JSON.parse(authData) : null;
+    
+    // Use appropriate password based on role
+    if (userAuth?.role === 'owner') {
+      headers['X-Owner-Password'] = config.ownerPassword || '';
+    } else {
+      // For group-admin and user roles, use userPassword
+      headers['X-Owner-Password'] = config.userPassword || '';
+    }
   }
 
   const response = await fetch(url, {

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Plus, CheckSquare, Trash2, Edit } from "lucide-react";
 import { getUserTasks, createTask, updateTask, deleteTask, getGroups } from "@/lib/api";
+import { getUserAuth } from "@/lib/auth";
 
 interface Task {
   id: number;
@@ -31,6 +34,7 @@ interface Group {
 }
 
 export default function MyTasks() {
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,11 +51,15 @@ export default function MyTasks() {
     group_id: "",
   });
 
-  // Get current user ID from localStorage (you should implement proper auth)
+  // Get current user ID from auth
   const getCurrentUserId = () => {
-    // TODO: Implement proper user authentication
-    // For now, return a placeholder
-    return 1;
+    const auth = getUserAuth();
+    if (!auth?.userId) {
+      toast.error("User ID not configured. Please go to Settings.");
+      navigate("/settings");
+      return null;
+    }
+    return auth.userId;
   };
 
   useEffect(() => {
@@ -63,6 +71,8 @@ export default function MyTasks() {
     setLoading(true);
     try {
       const userId = getCurrentUserId();
+      if (!userId) return;
+      
       const response = await getUserTasks(userId);
       setTasks(response.data?.tasks || []);
     } catch (error: any) {
@@ -95,6 +105,8 @@ export default function MyTasks() {
 
     try {
       const userId = getCurrentUserId();
+      if (!userId) return;
+      
       await createTask(userId, {
         title: formData.title,
         information: formData.information,
@@ -123,6 +135,8 @@ export default function MyTasks() {
 
     try {
       const userId = getCurrentUserId();
+      if (!userId) return;
+      
       await updateTask(userId, selectedTask.id, {
         title: formData.title,
         information: formData.information,
@@ -145,13 +159,18 @@ export default function MyTasks() {
   const handleToggleStatus = async (task: Task) => {
     try {
       const userId = getCurrentUserId();
+      if (!userId) return;
+      
       await updateTask(userId, task.id, {
-        ...task,
-        status: !task.status,
+        status: !task.status
       });
 
+      // Update local state
+      setTasks(tasks.map(t => 
+        t.id === task.id ? { ...t, status: !t.status } : t
+      ));
+
       toast.success(task.status ? "Task marked as pending" : "Task completed!");
-      loadTasks();
     } catch (error: any) {
       console.error("Failed to toggle task status:", error);
       toast.error("Failed to update task: " + error.message);
@@ -163,6 +182,8 @@ export default function MyTasks() {
 
     try {
       const userId = getCurrentUserId();
+      if (!userId) return;
+      
       await deleteTask(userId, taskId);
       toast.success("Task deleted successfully");
       loadTasks();
@@ -418,6 +439,7 @@ export default function MyTasks() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]"></TableHead>
                     <TableHead className="w-[60px]">ID</TableHead>
                     <TableHead className="min-w-[200px]">Title</TableHead>
                     <TableHead className="min-w-[150px]">Description</TableHead>
@@ -430,19 +452,19 @@ export default function MyTasks() {
                 <TableBody>
                   {tasks.map((task) => (
                     <TableRow key={task.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={task.status}
+                          onCheckedChange={() => handleToggleStatus(task)}
+                          aria-label="Toggle task completion"
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">{task.id}</TableCell>
                       <TableCell className="font-medium">{task.title}</TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
                         {task.information || "—"}
                       </TableCell>
-                      <TableCell>
-                        <button
-                          onClick={() => handleToggleStatus(task)}
-                          className="cursor-pointer hover:opacity-80 transition-opacity"
-                        >
-                          {getStatusBadge(task.status)}
-                        </button>
-                      </TableCell>
+                      <TableCell>{getStatusBadge(task.status)}</TableCell>
                       <TableCell>{getPriorityBadge(task.priority)}</TableCell>
                       <TableCell className="text-sm">
                         {formatDate(task.deadline)}

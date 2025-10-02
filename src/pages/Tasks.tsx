@@ -5,9 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Search, Filter, BarChart3, CheckSquare } from "lucide-react";
-import { searchTasks, getTaskStats, getTasksWithFilters } from "@/lib/api";
+import { searchTasks, getTaskStats, getTasksWithFilters, updateTask } from "@/lib/api";
+import { getUserAuth, isOwner, isGroupAdmin } from "@/lib/auth";
 
 interface Task {
   id: number;
@@ -52,6 +54,7 @@ export default function Tasks() {
   const loadTasks = async () => {
     setLoading(true);
     try {
+      const auth = getUserAuth();
       const filters: any = {};
       
       // Map frontend filter values to backend values
@@ -70,8 +73,15 @@ export default function Tasks() {
       const response = await getTasksWithFilters(filters);
       console.log("Tasks filter response:", response);
       
-      // ✅ FIX: Access nested tasks array
-      setTasks(response.data?.tasks || []);
+      let allTasks = response.data?.tasks || [];
+      
+      // Filter tasks based on role
+      if (isGroupAdmin() && auth?.groupId) {
+        // Group admin can only see tasks from their group
+        allTasks = allTasks.filter((task: Task) => task.group_id === auth.groupId);
+      }
+      
+      setTasks(allTasks);
       
     } catch (error: any) {
       console.error("Failed to load tasks:", error);
@@ -144,6 +154,27 @@ export default function Tasks() {
       return new Date(dateString).toLocaleDateString();
     } catch {
       return dateString;
+    }
+  };
+
+  const handleToggleTaskStatus = async (task: Task) => {
+    try {
+      await updateTask(task.user_id, task.id, {
+        status: !task.status
+      });
+      
+      // Update local state
+      setTasks(tasks.map(t => 
+        t.id === task.id ? { ...t, status: !t.status } : t
+      ));
+      
+      toast.success(task.status ? "Task marked as pending" : "Task completed!");
+      
+      // Reload stats
+      loadStats();
+    } catch (error: any) {
+      console.error("Failed to update task:", error);
+      toast.error("Failed to update task: " + error.message);
     }
   };
 
@@ -303,6 +334,7 @@ export default function Tasks() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]"></TableHead>
                     <TableHead className="w-[60px]">ID</TableHead>
                     <TableHead className="min-w-[200px]">Title</TableHead>
                     <TableHead className="min-w-[150px]">Information</TableHead>
@@ -317,6 +349,13 @@ export default function Tasks() {
                 <TableBody>
                   {tasks.map((task) => (
                     <TableRow key={task.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={task.status}
+                          onCheckedChange={() => handleToggleTaskStatus(task)}
+                          aria-label="Toggle task completion"
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">{task.id}</TableCell>
                       <TableCell className="font-medium">{task.title}</TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
