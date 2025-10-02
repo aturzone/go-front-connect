@@ -7,8 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Edit, Trash2, Search, Users as UsersIcon } from "lucide-react";
-import { getUsers, createUser, updateUser, deleteUser, searchUsers } from "@/lib/api";
+import { Plus, Edit, Trash2, Search, Users as UsersIcon, CheckSquare } from "lucide-react";
+import { getUsers, createUser, updateUser, deleteUser, searchUsers, createTask, getGroups } from "@/lib/api";
 
 interface User {
   id: number;
@@ -19,21 +19,37 @@ interface User {
   created_at?: string;
 }
 
+interface Group {
+  id: number;
+  name: string;
+}
+
 export default function Users() {
   const [users, setUsers] = useState<User[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
     role: "user",
     password: "",
   });
+  const [taskFormData, setTaskFormData] = useState({
+    title: "",
+    information: "",
+    priority: "2",
+    deadline: "",
+    group_id: "",
+  });
 
   useEffect(() => {
     loadUsers();
+    loadGroups();
   }, []);
 
   const loadUsers = async () => {
@@ -50,6 +66,15 @@ export default function Users() {
       setUsers([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadGroups = async () => {
+    try {
+      const response = await getGroups();
+      setGroups(response.data?.groups || []);
+    } catch (error: any) {
+      console.error("Failed to load groups:", error);
     }
   };
 
@@ -135,6 +160,49 @@ export default function Users() {
       loadUsers();
     } catch (error: any) {
       toast.error("Delete failed: " + error.message);
+    }
+  };
+
+  const handleOpenTaskDialog = (user: User) => {
+    setSelectedUser(user);
+    setTaskFormData({
+      title: "",
+      information: "",
+      priority: "2",
+      deadline: "",
+      group_id: user.group_ids?.[0]?.toString() || "",
+    });
+    setTaskDialogOpen(true);
+  };
+
+  const handleCreateTask = async () => {
+    if (!selectedUser) return;
+
+    if (!taskFormData.title.trim()) {
+      toast.error("Task title is required");
+      return;
+    }
+
+    if (!taskFormData.group_id) {
+      toast.error("Please select a group");
+      return;
+    }
+
+    try {
+      await createTask(selectedUser.id, {
+        title: taskFormData.title,
+        information: taskFormData.information,
+        priority: parseInt(taskFormData.priority),
+        deadline: taskFormData.deadline || undefined,
+        group_id: parseInt(taskFormData.group_id),
+      });
+
+      toast.success(`Task created for ${selectedUser.full_name}`);
+      setTaskDialogOpen(false);
+      setSelectedUser(null);
+    } catch (error: any) {
+      console.error("Failed to create task:", error);
+      toast.error("Failed to create task: " + error.message);
     }
   };
 
@@ -324,6 +392,14 @@ export default function Users() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => handleOpenTaskDialog(user)}
+                          title="Create task for user"
+                        >
+                          <CheckSquare className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleEdit(user)}
                         >
                           <Edit className="h-4 w-4" />
@@ -345,6 +421,89 @@ export default function Users() {
           </CardContent>
         </Card>
       )}
+
+      {/* Create Task Dialog */}
+      <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Create Task for {selectedUser?.full_name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="task-title">Title *</Label>
+              <Input
+                id="task-title"
+                value={taskFormData.title}
+                onChange={(e) => setTaskFormData({ ...taskFormData, title: e.target.value })}
+                placeholder="Task title"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="task-information">Description</Label>
+              <textarea
+                id="task-information"
+                value={taskFormData.information}
+                onChange={(e) => setTaskFormData({ ...taskFormData, information: e.target.value })}
+                placeholder="Task description"
+                rows={3}
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="task-priority">Priority</Label>
+              <select
+                id="task-priority"
+                value={taskFormData.priority}
+                onChange={(e) => setTaskFormData({ ...taskFormData, priority: e.target.value })}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="1">High (1)</option>
+                <option value="2">Medium (2)</option>
+                <option value="3">Low (3)</option>
+              </select>
+            </div>
+            
+            <div>
+              <Label htmlFor="task-group">Group *</Label>
+              <select
+                id="task-group"
+                value={taskFormData.group_id}
+                onChange={(e) => setTaskFormData({ ...taskFormData, group_id: e.target.value })}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                required
+              >
+                <option value="">Select a group</option>
+                {groups.map((group) => (
+                  <option key={group.id} value={group.id.toString()}>
+                    {group.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <Label htmlFor="task-deadline">Deadline</Label>
+              <Input
+                id="task-deadline"
+                type="date"
+                value={taskFormData.deadline}
+                onChange={(e) => setTaskFormData({ ...taskFormData, deadline: e.target.value })}
+              />
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setTaskDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateTask}>Create Task</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

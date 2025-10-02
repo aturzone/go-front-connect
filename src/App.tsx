@@ -9,6 +9,7 @@ import Settings from "./pages/Settings";
 import Users from "./pages/Users";
 import Groups from "./pages/Groups";
 import Tasks from "./pages/Tasks";
+import MyTasks from "./pages/MyTasks";
 import Admin from "./pages/Admin";
 import Health from "./pages/Health";
 import NotFound from "./pages/NotFound";
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/users" element={<Users />} />
             <Route path="/groups" element={<Groups />} />
             <Route path="/tasks" element={<Tasks />} />
+            <Route path="/my-tasks" element={<MyTasks />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/health" element={<Health />} />
           </Route>

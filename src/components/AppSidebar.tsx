@@ -4,6 +4,7 @@ import {
   Users,
   FolderKanban,
   CheckSquare,
+  ClipboardList,
   Settings,
   ShieldCheck,
   Activity,
@@ -25,7 +26,8 @@ const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Users", url: "/users", icon: Users },
   { title: "Groups", url: "/groups", icon: FolderKanban },
-  { title: "Tasks", url: "/tasks", icon: CheckSquare },
+  { title: "All Tasks", url: "/tasks", icon: CheckSquare },
+  { title: "My Tasks", url: "/my-tasks", icon: ClipboardList },
 ];
 
 const adminItems = [

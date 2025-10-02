@@ -101,6 +101,8 @@ export const deleteGroup = (id: number) => apiRequest(`/groups/${id}`, { method:
 // Tasks
 export const getUserTasks = (userId: number) => apiRequest(`/users/${userId}/tasks`);
 export const createTask = (userId: number, data: any) => apiRequest(`/users/${userId}/tasks`, { method: 'POST', body: JSON.stringify(data) });
+export const updateTask = (userId: number, taskId: number, data: any) => apiRequest(`/users/${userId}/tasks/${taskId}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteTask = (userId: number, taskId: number) => apiRequest(`/users/${userId}/tasks/${taskId}`, { method: 'DELETE' });
 export const searchTasks = (query: string) => apiRequest(`/tasks/search?q=${encodeURIComponent(query)}`);
 export const getTaskStats = () => apiRequest('/tasks/stats');
 export const batchUpdateTasks = (data: any) => apiRequest('/tasks/batch', { method: 'POST', body: JSON.stringify(data) });

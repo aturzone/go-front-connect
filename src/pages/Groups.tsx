@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Edit, Trash2, Users } from "lucide-react";
+import { Plus, Edit, Trash2, Users, FolderKanban } from "lucide-react";
 import { getGroups, createGroup, updateGroup, deleteGroup, getUsers } from "@/lib/api";
 
 interface Group {
