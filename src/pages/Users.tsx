@@ -43,7 +43,9 @@ export default function Users() {
       const response = await getUsers();
       setUsers(response.data || []);
     } catch (error: any) {
+      console.error("Failed to load users:", error);
       toast.error("Failed to load users: " + error.message);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -59,7 +61,9 @@ export default function Users() {
       const response = await searchUsers(searchQuery);
       setUsers(response.data || []);
     } catch (error: any) {
+      console.error("Search failed:", error);
       toast.error("Search failed: " + error.message);
+      setUsers([]);
     }
   };
 

@@ -20,12 +20,13 @@ export default function Admin() {
     setLoading(true);
     try {
       const [statusData, statsData] = await Promise.all([
-        getAdminStatus(),
-        getAdminStats(),
+        getAdminStatus().catch(() => ({ data: null })),
+        getAdminStats().catch(() => ({ data: null })),
       ]);
       setStatus(statusData.data);
       setStats(statsData.data);
     } catch (error: any) {
+      console.error("Failed to load admin data:", error);
       toast.error("Failed to load admin data: " + error.message);
     } finally {
       setLoading(false);

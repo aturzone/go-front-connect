@@ -18,21 +18,21 @@ export default function Dashboard() {
   const [systemStatus, setSystemStatus] = useState<any>(null);
 
   useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
     if (!isApiConfigured()) {
       navigate("/settings");
       return;
     }
 
-    loadDashboardData();
-  }, [navigate]);
-
-  const loadDashboardData = async () => {
     setLoading(true);
     try {
       const [usersData, groupsData, taskStatsData, statusData] = await Promise.all([
-        getUsers(),
-        getGroups(),
-        getTaskStats(),
+        getUsers().catch(() => ({ data: [] })),
+        getGroups().catch(() => ({ data: [] })),
+        getTaskStats().catch(() => ({ data: { total: 0, completed: 0 } })),
         getAdminStatus().catch(() => null),
       ]);
 
@@ -47,6 +47,7 @@ export default function Dashboard() {
         setSystemStatus(statusData.data);
       }
     } catch (error: any) {
+      console.error("Dashboard data load error:", error);
       toast.error("Failed to load dashboard data: " + error.message);
     } finally {
       setLoading(false);

@@ -38,7 +38,9 @@ export default function Groups() {
       const response = await getGroups();
       setGroups(response.data || []);
     } catch (error: any) {
+      console.error("Failed to load groups:", error);
       toast.error("Failed to load groups: " + error.message);
+      setGroups([]);
     } finally {
       setLoading(false);
     }

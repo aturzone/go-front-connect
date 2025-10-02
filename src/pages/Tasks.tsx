@@ -40,6 +40,7 @@ export default function Tasks() {
       setStats(response.data);
     } catch (error: any) {
       console.error("Failed to load stats:", error);
+      // Silently fail for stats, don't show error toast
     }
   };
 
@@ -53,7 +54,9 @@ export default function Tasks() {
       const response = await getTasksWithFilters(filters);
       setTasks(response.data || []);
     } catch (error: any) {
+      console.error("Failed to load tasks:", error);
       toast.error("Failed to load tasks: " + error.message);
+      setTasks([]);
     } finally {
       setLoading(false);
     }
@@ -70,7 +73,9 @@ export default function Tasks() {
       const response = await searchTasks(searchQuery);
       setTasks(response.data || []);
     } catch (error: any) {
+      console.error("Search failed:", error);
       toast.error("Search failed: " + error.message);
+      setTasks([]);
     } finally {
       setLoading(false);
     }
