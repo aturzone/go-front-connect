@@ -61,7 +61,7 @@ export function AppSidebar() {
           </div>
           {open && (
             <div className="flex flex-col">
-              <span className="font-semibold text-sidebar-foreground">GASK Manager</span>
+              <span className="font-semibold text-sidebar-foreground">GASK</span>
               <span className="text-xs text-sidebar-foreground/60">Task Management</span>
             </div>
           )}
