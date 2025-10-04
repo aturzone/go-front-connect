@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { ArrowLeft, Users, FolderKanban, UserCheck } from "lucide-react";
-import { getGroup, getUsers } from "@/lib/api";
+import { getGroup, getGroups, getUsers } from "@/lib/api";
 import { isOwner, isGroupAdmin } from "@/lib/auth";
 
 interface Group {
@@ -29,6 +29,7 @@ interface User {
 export default function GroupDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [group, setGroup] = useState<Group | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [admin, setAdmin] = useState<User | null>(null);
@@ -45,36 +46,50 @@ export default function GroupDetail() {
     
     setLoading(true);
     try {
-      // Load group and all users in parallel
-      const [groupRes, usersRes] = await Promise.all([
-        getGroup(parseInt(id)),
-        getUsers()
-      ]);
+      // Prefer group passed via navigation state to avoid 404s on /groups/:id
+      const stateGroup = (location as any)?.state?.group as Group | undefined;
+      let groupData: Group | null = stateGroup || null;
 
-      const groupData = groupRes.data?.group;
+      if (!groupData) {
+        // Try to find group from the full list
+        const groupsRes = await getGroups();
+        const allGroups: Group[] = groupsRes.data?.groups || [];
+        groupData = allGroups.find((g) => g.id === parseInt(id)) || null;
+      }
+
+      if (!groupData) {
+        // Fallback: direct fetch by ID (some APIs may not support this)
+        try {
+          const groupRes = await getGroup(parseInt(id));
+          groupData = groupRes.data?.group || null;
+        } catch (err) {
+          // ignore; we'll handle below
+        }
+      }
+
       if (!groupData) {
         toast.error("Group not found");
-        navigate("/groups");
+        setGroup(null);
         return;
       }
 
       setGroup(groupData);
 
-      // Get all users
+      // Load all users and filter to group members
+      const usersRes = await getUsers();
       const allUsers = usersRes.data?.users || [];
-      
-      // Filter users belonging to this group
-      const groupUsers = allUsers.filter((u: User) => u.group_id === parseInt(id));
+
+      const groupUsers = allUsers.filter((u: User) => u.group_id === groupData!.id);
       setUsers(groupUsers);
 
-      // Find the admin
-      const adminUser = allUsers.find((u: User) => u.id === groupData.admin_id);
+      // Find admin by id
+      const adminUser = allUsers.find((u: User) => u.id === groupData!.admin_id);
       setAdmin(adminUser || null);
 
     } catch (error: any) {
       console.error("Failed to load group details:", error);
       toast.error("Failed to load group details: " + error.message);
-      navigate("/groups");
+      setGroup(null);
     } finally {
       setLoading(false);
     }

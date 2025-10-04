@@ -89,6 +89,12 @@ export default function Settings() {
       }
     }
 
+    // Prevent privilege confusion: owner and user passwords must not be identical
+    if (ownerPassword && userPassword && ownerPassword === userPassword) {
+      toast.error("Owner and user passwords must be different");
+      return;
+    }
+
     saveApiConfig({ baseUrl, ownerPassword, userPassword });
     saveUserAuth({
       role,

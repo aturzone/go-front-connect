@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Search, Filter, BarChart3, CheckSquare, Plus } from "lucide-react";
 import { searchTasks, getTaskStats, getTasksWithFilters, updateTask, createTask, getUsers } from "@/lib/api";
-import { getUserAuth, isOwner, isGroupAdmin } from "@/lib/auth";
+import { getUserAuth, isOwner, isGroupAdmin, isUser } from "@/lib/auth";
 
 interface Task {
   id: number;
@@ -108,6 +108,9 @@ export default function Tasks() {
       if (isGroupAdmin() && auth?.groupId) {
         // Group admin can only see tasks from their group
         allTasks = allTasks.filter((task: Task) => task.group_id === auth.groupId);
+      } else if (isUser() && auth?.userId) {
+        // Regular user can only see own tasks
+        allTasks = allTasks.filter((task: Task) => task.user_id === auth.userId);
       }
       
       setTasks(allTasks);
