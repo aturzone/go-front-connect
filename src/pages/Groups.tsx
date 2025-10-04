@@ -251,7 +251,7 @@ export default function Groups() {
             <Card 
               key={group.id} 
               className="hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => navigate(`/groups/${group.id}` , { state: { group } })}
+              onClick={() => navigate(`/groups/${group.id}`)}
             >
               <CardHeader>
                 <div className="flex items-start justify-between">

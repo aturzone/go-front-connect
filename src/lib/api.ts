@@ -63,19 +63,17 @@ export const apiRequest = async <T = any>(
     // Get user authentication data
     const authData = localStorage.getItem('gask_user_auth');
     const userAuth = authData ? JSON.parse(authData) : null;
-
-    // Always send the intended client role so backend can enforce exact permissions
-    if (userAuth?.role) {
-      headers['X-Client-Role'] = userAuth.role;
-    }
     
     // CRITICAL: Use password based on selected role (not password content)
+    // This ensures the selected role's permissions are enforced
     if (userAuth?.role === 'owner') {
+      // Owner role must use owner password
       if (!config.ownerPassword) {
         throw new Error('Owner password not configured');
       }
       headers['X-Owner-Password'] = config.ownerPassword;
     } else {
+      // group-admin and user roles must use user password
       if (!config.userPassword) {
         throw new Error('User password not configured');
       }
