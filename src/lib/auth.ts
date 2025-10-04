@@ -32,10 +32,24 @@ export const clearUserAuth = (): void => {
   localStorage.removeItem(AUTH_KEY);
 };
 
-// Check if user has specific role
+// Check if user has specific role (exact match only)
 export const hasRole = (role: UserRole): boolean => {
   const auth = getUserAuth();
   return auth?.role === role;
+};
+
+// Check if user has specific role or higher
+export const hasRoleOrHigher = (role: UserRole): boolean => {
+  const auth = getUserAuth();
+  if (!auth) return false;
+  
+  const roleHierarchy: Record<UserRole, number> = {
+    'owner': 3,
+    'group-admin': 2,
+    'user': 1,
+  };
+  
+  return roleHierarchy[auth.role] >= roleHierarchy[role];
 };
 
 // Check if owner

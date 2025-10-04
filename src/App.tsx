@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import Users from "./pages/Users";
 import Groups from "./pages/Groups";
+import GroupDetail from "./pages/GroupDetail";
 import Tasks from "./pages/Tasks";
 import MyTasks from "./pages/MyTasks";
 import Admin from "./pages/Admin";
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/settings" element={<Settings />} />
             <Route path="/users" element={<Users />} />
             <Route path="/groups" element={<Groups />} />
+            <Route path="/groups/:id" element={<GroupDetail />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/my-tasks" element={<MyTasks />} />
             <Route path="/admin" element={<Admin />} />

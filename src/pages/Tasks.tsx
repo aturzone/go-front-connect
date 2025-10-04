@@ -2,13 +2,16 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Search, Filter, BarChart3, CheckSquare } from "lucide-react";
-import { searchTasks, getTaskStats, getTasksWithFilters, updateTask } from "@/lib/api";
+import { Search, Filter, BarChart3, CheckSquare, Plus } from "lucide-react";
+import { searchTasks, getTaskStats, getTasksWithFilters, updateTask, createTask, getUsers } from "@/lib/api";
 import { getUserAuth, isOwner, isGroupAdmin } from "@/lib/auth";
 
 interface Task {
@@ -24,18 +27,44 @@ interface Task {
   updated_at?: string;
 }
 
+interface User {
+  id: number;
+  full_name: string;
+  email: string;
+  group_id?: number;
+}
+
 export default function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
   const [stats, setStats] = useState<any>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    title: "",
+    information: "",
+    priority: "2",
+    deadline: "",
+    user_id: "",
+  });
 
   useEffect(() => {
     loadStats();
     loadTasks();
+    loadUsers();
   }, []);
+
+  const loadUsers = async () => {
+    try {
+      const response = await getUsers();
+      setUsers(response.data?.users || []);
+    } catch (error: any) {
+      console.error("Failed to load users:", error);
+    }
+  };
 
   const loadStats = async () => {
     try {
@@ -178,11 +207,153 @@ export default function Tasks() {
     }
   };
 
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.user_id) {
+      toast.error("Please select a user");
+      return;
+    }
+
+    if (!formData.title.trim()) {
+      toast.error("Please enter a task title");
+      return;
+    }
+
+    try {
+      const payload = {
+        title: formData.title.trim(),
+        information: formData.information.trim() || undefined,
+        priority: parseInt(formData.priority),
+        deadline: formData.deadline || undefined,
+        status: false,
+      };
+
+      await createTask(parseInt(formData.user_id), payload);
+      toast.success("Task created successfully");
+      
+      setDialogOpen(false);
+      setFormData({
+        title: "",
+        information: "",
+        priority: "2",
+        deadline: "",
+        user_id: "",
+      });
+      
+      loadTasks();
+      loadStats();
+      
+    } catch (error: any) {
+      console.error("Failed to create task:", error);
+      toast.error("Failed to create task: " + error.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Tasks</h1>
-        <p className="text-muted-foreground">Browse and search all tasks in the system</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Tasks</h1>
+          <p className="text-muted-foreground">Browse and search all tasks in the system</p>
+        </div>
+        
+        {(isOwner() || isGroupAdmin()) && (
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => {
+                setFormData({
+                  title: "",
+                  information: "",
+                  priority: "2",
+                  deadline: "",
+                  user_id: "",
+                });
+              }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Task
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create New Task</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleCreateTask} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="user_id">Assign To *</Label>
+                  <Select
+                    value={formData.user_id}
+                    onValueChange={(value) => setFormData({ ...formData, user_id: value })}
+                  >
+                    <SelectTrigger id="user_id">
+                      <SelectValue placeholder="Select a user..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users.map((user) => (
+                        <SelectItem key={user.id} value={user.id.toString()}>
+                          {user.full_name} (ID: {user.id})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="title">Task Title *</Label>
+                  <Input
+                    id="title"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    placeholder="e.g., Complete project documentation"
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="information">Description</Label>
+                  <Textarea
+                    id="information"
+                    value={formData.information}
+                    onChange={(e) => setFormData({ ...formData, information: e.target.value })}
+                    placeholder="Additional details about the task..."
+                    rows={3}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="priority">Priority *</Label>
+                  <Select
+                    value={formData.priority}
+                    onValueChange={(value) => setFormData({ ...formData, priority: value })}
+                  >
+                    <SelectTrigger id="priority">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">High (1)</SelectItem>
+                      <SelectItem value="2">Medium (2)</SelectItem>
+                      <SelectItem value="3">Low (3)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="deadline">Deadline</Label>
+                  <Input
+                    id="deadline"
+                    type="date"
+                    value={formData.deadline}
+                    onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                  />
+                </div>
+                
+                <Button type="submit" className="w-full">
+                  Create Task
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Stats Cards */}
